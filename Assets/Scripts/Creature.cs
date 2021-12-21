@@ -31,7 +31,8 @@ public class Creature : MonoBehaviour
     [SerializeField] private Vector3 target;
     [SerializeField] private float awarenessRadius;
 
-    [SerializeField] private float[] genes; // Search for food | Search for mate | Move speed // TODO: | awarenessRadius?
+    [SerializeField]
+    private float[] genes; // Search for food | Search for mate | Move speed // TODO: | awarenessRadius?
 
     [SerializeField] private int actionsTillStarve;
     [SerializeField] private int currentActionsTillStarve;
@@ -47,6 +48,8 @@ public class Creature : MonoBehaviour
         haveRealTarget = false;
         genes = new float[4];
         currentActionsTillStarve = actionsTillStarve;
+        GenerateRandomGenes();
+        SetColour();
     }
 
     // Update is called once per frame
@@ -61,9 +64,9 @@ public class Creature : MonoBehaviour
         {
             if (!haveRealTarget)
             {
-                String intention = GetIntention();
-                CheckForTargets(intention);
+                CheckForTargets(GetIntention());
             }
+
             MoveTowards(target, GetIntention());
         }
     }
@@ -89,29 +92,26 @@ public class Creature : MonoBehaviour
 
     private void CheckForTargets(String intention)
     {
-        // TODO: Random roll with likelihoods for mate and food
         // TODO: The closer the more likely
         LayerMask creatureMask = LayerMask.GetMask("Creature");
         LayerMask foodMask = LayerMask.GetMask("Food");
         LayerMask chosenMask = intention.Equals("mate") ? creatureMask : foodMask;
         Collider2D[] colliders = Physics2D.OverlapCircleAll(gameObject.transform.position, awarenessRadius, chosenMask);
 
-        int threshold = intention.Equals("mate") ? 1 : 0; // CircleAll finds self with creature but not with food
-        
-        if (colliders.Length <= threshold) // Only got self in list
+        List<Collider2D> collidersList = new List<Collider2D>(colliders);
+        collidersList.Remove(GetComponent<Collider2D>());
+
+        if (collidersList.Count <= 0) // Get random point
         {
-            if (target == Vector3.zero) // TODO: This is very costly... Search should actually only be used in some interval unless a valid target can be found
+            if (target == Vector3.zero) // If just sent back from eat/mate
             {
                 target = new Vector3(Random.Range(-5, 5), Random.Range(-5, 5), 0);
-                haveRealTarget = false;
                 currentActionsTillStarve--;
             }
+            haveRealTarget = false;
         }
-        else // Also found other colliders
+        else // Found a valid target
         {
-            // First remove own collider from list
-            List<Collider2D> collidersList = new List<Collider2D>(colliders);
-            collidersList.Remove(GetComponent<Collider2D>());
             int randomIndex = Random.Range(0, collidersList.Count - 1);
             target = collidersList[randomIndex].gameObject.transform.position;
             targetCreature = collidersList[randomIndex].gameObject.GetComponent<Creature>();
@@ -128,14 +128,16 @@ public class Creature : MonoBehaviour
         float magnitudeMoveDirection = Vector3.Magnitude(moveDirection);
         Vector3 normalisedMoveDirection = moveDirection / magnitudeMoveDirection;
 
-        if (math.abs(Vector3.Magnitude(target - gameObject.transform.position)) > moveSpeed * 0.5f)
+        if (math.abs(Vector3.Magnitude(target - gameObject.transform.position)) > moveSpeed * 0.5f) // If far enough away, move
         {
             gameObject.transform.position += normalisedMoveDirection * moveSpeed;
         }
-        else
+        else // Else fulfill intention
         {
             if (haveRealTarget)
             {
+                matingEatingOrDying = true;
+                
                 if (intention.Equals("eat"))
                 {
                     StartCoroutine(Eat());
@@ -144,6 +146,8 @@ public class Creature : MonoBehaviour
                 {
                     StartCoroutine(Mate());
                 }
+
+                matingEatingOrDying = false;
             }
 
             this.target = Vector3.zero;
@@ -153,49 +157,49 @@ public class Creature : MonoBehaviour
 
     private IEnumerator Mate()
     {
-        matingEatingOrDying = true;
-        
         currentActionsTillStarve--;
-        yield return new WaitForSeconds(1);
         StartCoroutine(targetCreature.PauseForMate());
+        yield return new WaitForSeconds(1);
+        
         targetCreature = null;
         targetFood = null;
-        
-        matingEatingOrDying = false;
+        haveRealTarget = false;
+        target = Vector3.zero;
     }
 
     public IEnumerator PauseForMate()
     {
         matingEatingOrDying = true;
-        
+
         yield return new WaitForSeconds(1);
 
         matingEatingOrDying = false;
     }
-    
+
     private IEnumerator Eat()
     {
-        matingEatingOrDying = true;
+        targetFood.BeEaten();
         
         yield return new WaitForSeconds(1);
+        
         currentActionsTillStarve = actionsTillStarve;
-        targetFood.BeEaten();
-        transform.localScale = new Vector3(transform.localScale.x + 0.1f, transform.localScale.y + 0.1f,
+        transform.localScale = new Vector3(transform.localScale.x + 0.2f, transform.localScale.y + 0.2f,
             transform.localScale.z);
-        
-        
+
+
         // Set to null for next search
         targetCreature = null;
         targetFood = null;
-        
-        matingEatingOrDying = false;
+        haveRealTarget = false;
+        target = Vector3.zero;
     }
 
     public void SetColour()
     {
         SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
         spriteRenderer.color =
-            new Color(genes[0] / 255 + genes[3], genes[1] / 255 + genes[3], genes[2] / 255 + genes[3]);
+            new Color(genes[0] / 255 + genes[3] / 255, genes[1] / 255 + genes[3] / 255,
+                genes[2] / 255 + genes[3] / 255);
     }
 
     public void GenerateRandomGenes()

@@ -1425,8 +1425,8 @@ MonoBehaviour:
   target: {x: 0, y: 0, z: 0}
   awarenessRadius: 1
   genes:
-  - 90
-  - 10
+  - 0
+  - 0
   - 0
   - 0
   actionsTillStarve: 10
